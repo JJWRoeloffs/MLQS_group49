@@ -59,12 +59,10 @@ def merge_data(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def remove_useless(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Remove any points that don't have some metric of speed and heartrate"""
     return [
-        point
-        for point in data
-        if point["HeartRate"] is not None
-        if (point["Latitude"] is not None and point["Longitude"] is not None)
-        or point["Speed"] is not None
-        or point["Distance"] is not None
+        p
+        for p in data
+        if p["HeartRate"]
+        if (p["Latitude"] and p["Longitude"]) or p["Speed"] or p["Distance"]
     ]
 
 
