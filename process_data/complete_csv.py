@@ -6,9 +6,9 @@ If Speed does not exist, try to build it from Distance.
 
 The only sometimes missing value here is Elevation, which I'm willing to leave for now.
 """
+from pathlib import Path
 from datetime import datetime
 from itertools import groupby, tee
-from pathlib import Path
 from csv import DictReader, DictWriter
 
 from geopy.distance import distance
@@ -49,14 +49,14 @@ def fill_in_distance(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     with_distance = []
     for runid, group in groupby(data, lambda x: x["RunID"]):
         deleted = 0
-        group = list(group)
+        group = sorted(group, key=get_time)
         if group[0]["Distance"]:
             prev_dist = float(group[0]["Distance"])
         else:
             prev_dist = 0.0
         with_distance.append(group[0] | {"Distance": prev_dist})
         prev_time = get_time(group[0])
-        for x, y in pairwise(sorted(group, key=get_time)):
+        for x, y in pairwise(group):
             if y["Distance"]:
                 new_dist = float(y["Distance"])
             elif y["Speed"]:
@@ -87,13 +87,13 @@ def fill_in_speed(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     with_speed = []
     for runid, group in groupby(data, lambda x: x["RunID"]):
         deleted = 0
-        group = list(group)
+        group = sorted(group, key=get_time)
         if group[0]["Speed"]:
             prev_speed = float(group[0]["Speed"])
         else:
             prev_speed = 0.0
         with_speed.append(group[0] | {"Speed": prev_speed})
-        for x, y in pairwise(sorted(group, key=get_time)):
+        for x, y in pairwise(group):
             if y["Speed"]:
                 new_speed = float(y["Speed"])
             elif x["Distance"] < y["Distance"]:
