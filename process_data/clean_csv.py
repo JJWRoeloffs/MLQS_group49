@@ -36,7 +36,7 @@ def unclean_runs(data: List[Dict[str, Any]]) -> Iterable[str]:
         if len(run) < 300:
             yield runid
             continue
-        if (get_time(run[1]) - get_time(run[0])).total_seconds() < 300:
+        if (get_time(run[-1]) - get_time(run[0])).total_seconds() < 300:
             yield runid
             continue
         if max(float(point["Distance"]) for point in run) < 500:
@@ -47,6 +47,7 @@ def unclean_runs(data: List[Dict[str, Any]]) -> Iterable[str]:
 def remove_unclean_runs(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     "Remove the runs that fit the criteria for a useless run"
     unclean_run_ids = set(unclean_runs(data))
+    print(f"Removing {len(unclean_run_ids)} runs because they are unusable.")
     return [point for point in data if point["RunID"] not in unclean_run_ids]
 
 
@@ -60,13 +61,16 @@ def remove_trailing(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def remove_unreasonable_values(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [
+    ret = [
         point
         for point in data
         if float(point["HeartRate"]) < 200
         if float(point["Distance"]) < 50_000
         if float(point["Speed"]) < 8
     ]
+    print(f"Removed {len(data) - len(ret)} out of {len(data)} points")
+    print(f"{((len(data) - len(ret))/len(data))*100}%, because they are unreasonable")
+    return ret
 
 
 def main():
