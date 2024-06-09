@@ -2,14 +2,15 @@
 """
 Cleans the data as it comes out raw from the csv.
 
+Removes unreasonable values:
+    Distance over 50km (Might be reasonable for others, but we know the subject.)
+    Heart Rate over 220
+    Heart Rate under 20
+    Speed over 30km/h (8 m/s)
 Removes runs that are incomplete:
     Less than 500m
     Less than 5min
     Less than 300 data points (which is 5min if it is all complete).
-Removes unreasonable values:
-    Distance over 50km (Might be reasonable for others, but we know the subject.)
-    Heart Rate over 200
-    Speed over 30km/h (8 m/s)
 Removes first and last 10 vals of each run:
     This is reasonable, as they are usually starting/stopping strava and all that.
 """
@@ -64,7 +65,8 @@ def remove_unreasonable_values(data: List[Dict[str, Any]]) -> List[Dict[str, Any
     ret = [
         point
         for point in data
-        if float(point["HeartRate"]) < 200
+        if float(point["HeartRate"]) < 220
+        if float(point["HeartRate"]) > 20
         if float(point["Distance"]) < 50_000
         if float(point["Speed"]) < 8
     ]
