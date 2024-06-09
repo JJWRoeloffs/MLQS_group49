@@ -46,6 +46,8 @@ def fill_in_distance(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     A cleaner version of this code is a state machine that runs over each run.
     However, I'm willing to accept 20 lines of garbage if I don't need to write a state machine
     """
+    # TODO: Deal with faulty GPS data somehow. If the calculated distance in both
+    # directions is very high over a short time, it's likely some measurement error.
     with_distance = []
     for runid, group in groupby(data, lambda x: x["RunID"]):
         deleted = 0

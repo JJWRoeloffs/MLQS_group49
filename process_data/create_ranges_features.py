@@ -21,6 +21,8 @@ OUTFILE = DATAPATH / "with_ranges_features.csv"
 
 
 def add_range_features(data: List[Dict[str, Any]], name: str) -> List[Dict[str, Any]]:
+    # TODO: We need a better measure of the highest value.
+    # We currently probably get some outlier, which is not what we want.
     sort = sorted([float(point[name]) for point in data])
     return [
         p
