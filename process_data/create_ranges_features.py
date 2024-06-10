@@ -29,6 +29,7 @@ def add_range_features(data: List[Dict[str, Any]], name: str) -> List[Dict[str, 
         | {
             f"{name}Range": float(p[name]) / sort[-1],
             f"{name}Quotient": (bisect_left(sort, float(p[name])) / (len(sort) - 1)),
+            **({"HeartRateClass": min(int((float(p[name]) / sort[-1]) / 0.1) + 1, 10)} if name == "HeartRate" else {})
         }
         for p in data
     ]
