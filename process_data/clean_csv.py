@@ -19,6 +19,8 @@ from datetime import datetime
 from itertools import groupby
 from csv import DictReader, DictWriter
 
+from sklearn.neighbors import LocalOutlierFactor
+
 from typing import Any, Dict, Iterable, List
 
 DATAPATH = Path("processed_data/")
@@ -89,11 +91,23 @@ def smoothen_speed(data: List[Dict[str, Any]], alpha: float) -> List[Dict[str, A
     return smoothened_speed
 
 
+def local_outlier_removal(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    clf = LocalOutlierFactor()
+    indata = [
+        [float(point["HeartRate"]), float(point["Speed"]), float(point["Distance"])]
+        for point in data
+    ]
+    labels = clf.fit_predict(indata)
+    print(f"Removed {sum(1 for label in labels if label == -1)} points with LOF")
+    return [point for label, point in zip(labels, data) if label != -1]
+
+
 def main():
     with INFILE.open("r") as f:
         points = list(DictReader(f))
     cleaned = remove_trailing(remove_unclean_runs(remove_unreasonable_values(points)))
     points = smoothen_speed(cleaned, 0.5)
+    points = local_outlier_removal(points)
     assert all(points[0].keys() == point.keys() for point in points)
     with OUTFILE.open("w") as f:
         writer = DictWriter(f, fieldnames=points[0].keys())
