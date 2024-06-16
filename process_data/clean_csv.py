@@ -76,10 +76,24 @@ def remove_unreasonable_values(data: List[Dict[str, Any]]) -> List[Dict[str, Any
     return ret
 
 
+def smoothen_speed(data: List[Dict[str, Any]], alpha: float) -> List[Dict[str, Any]]:
+    """Performs exponential smoothening on the speed variable"""
+    smoothened_speed = []
+    for _, group in groupby(data, lambda x: x["RunID"]):
+        group = sorted(group, key=get_time)
+        prev = float(group[0]["Speed"])
+        for point in group:
+            newval = (alpha * prev) + (1 - alpha) * float(point["Speed"])
+            smoothened_speed.append(point | {"Speed": newval})
+            prev = newval
+    return smoothened_speed
+
+
 def main():
     with INFILE.open("r") as f:
         points = list(DictReader(f))
-    points = remove_trailing(remove_unclean_runs(remove_unreasonable_values(points)))
+    cleaned = remove_trailing(remove_unclean_runs(remove_unreasonable_values(points)))
+    points = smoothen_speed(cleaned, 0.5)
     assert all(points[0].keys() == point.keys() for point in points)
     with OUTFILE.open("w") as f:
         writer = DictWriter(f, fieldnames=points[0].keys())
