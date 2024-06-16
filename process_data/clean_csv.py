@@ -69,6 +69,7 @@ def remove_unreasonable_values(data: List[Dict[str, Any]]) -> List[Dict[str, Any
         if float(point["HeartRate"]) > 20
         if float(point["Distance"]) < 50_000
         if float(point["Speed"]) < 8
+        if float(point["Speed"]) >= 0
     ]
     print(f"Removed {len(data) - len(ret)} out of {len(data)} points")
     print(f"{((len(data) - len(ret))/len(data))*100}%, because they are unreasonable")

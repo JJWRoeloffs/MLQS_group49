@@ -41,13 +41,11 @@ def get_time(point: Dict[str, Any]) -> datetime:
 
 
 def fill_in_distance(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Fill in all the distances / speeds where there are none.
+    """Fill in all the Distance where there are none
 
     A cleaner version of this code is a state machine that runs over each run.
     However, I'm willing to accept 20 lines of garbage if I don't need to write a state machine
     """
-    # TODO: Deal with faulty GPS data somehow. If the calculated distance in both
-    # directions is very high over a short time, it's likely some measurement error.
     with_distance = []
     for runid, group in groupby(data, lambda x: x["RunID"]):
         deleted = 0
@@ -77,45 +75,78 @@ def fill_in_distance(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return with_distance
 
 
-def fill_in_speed(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def fill_in_speed(data: List[Dict[str, Any]], name: str) -> List[Dict[str, Any]]:
     """Fills in the speed value of all points where possible based off previous distance
-    Does not allow negative speed
-    Does some smoothening: all new calculated values are not raw,
-    but instead 50% raw, and 50% from previous, smoothening out harmonically
 
     A cleaner version of this code is a state machine that runs over each run.
     However, I'm willing to accept 20 lines of garbage if I don't need to write a state machine
     """
     with_speed = []
-    for runid, group in groupby(data, lambda x: x["RunID"]):
-        deleted = 0
+    for _, group in groupby(data, lambda x: x["RunID"]):
         group = sorted(group, key=get_time)
         if group[0]["Speed"]:
-            prev_speed = float(group[0]["Speed"])
+            with_speed.append(group[0] | {name: float(group[0]["Speed"])})
         else:
-            prev_speed = 0.0
-        with_speed.append(group[0] | {"Speed": prev_speed})
+            with_speed.append(group[0] | {name: 0.0})
         for x, y in pairwise(group):
             if y["Speed"]:
-                new_speed = float(y["Speed"])
-            elif x["Distance"] < y["Distance"]:
+                with_speed.append(y | {name: y["Speed"]})
+            else:
                 time_elapsed = (get_time(y) - get_time(x)).total_seconds()
                 dist_elapsed = y["Distance"] - x["Distance"]
-                new_speed = (prev_speed + (dist_elapsed / time_elapsed)) / 2
-            else:
-                deleted += 1
-                continue
-            with_speed.append(y | {"Speed": new_speed})
-            prev_speed = new_speed
-        if deleted:
-            print(f"Delted {deleted} points in {runid}, negative speed")
+                with_speed.append(y | {name: dist_elapsed / time_elapsed})
     return with_speed
+
+
+def recalculate_distance(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    with_incr_distance = []
+    for _, group in groupby(data, lambda x: x["RunID"]):
+        prev = 0.0
+        group = sorted(group, key=get_time)
+        for point in group:
+            current = float(point["Distance"])
+            with_incr_distance.append(point | {"IncrDistance": current - prev})
+            prev = current
+
+    with_new_incr_dist = []
+    for _, group in groupby(with_incr_distance, lambda x: x["RunID"]):
+        group = sorted(group, key=get_time)
+        for x, y in pairwise(group):
+            try:
+                new_incr_distance = min(
+                    y["IncrDistance"], distance(get_loc(x), get_loc(y)).meters
+                )
+                with_new_incr_dist.append(y | {"IncrDistance": new_incr_distance})
+            except:
+                with_new_incr_dist.append(y)
+
+    with_new_dist = []
+    for _, group in groupby(with_new_incr_dist, lambda x: x["RunID"]):
+        group = sorted(group, key=get_time)
+        prev = group[0]["Distance"]
+        for point in group:
+            new_dist = prev + point["IncrDistance"]
+            with_new_dist.append(point | {"Distance": new_dist})
+            prev = new_dist
+
+    for point in with_new_dist:
+        del point["IncrDistance"]
+    return with_new_dist
+
+
+def fill_in_points(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    partial = fill_in_speed(fill_in_distance(data), "NewSpeed")
+    wt_unreason_speed = [point for point in partial if float(point["NewSpeed"]) < 8]
+    for point in wt_unreason_speed:
+        del point["NewSpeed"]
+    new_distances = recalculate_distance(wt_unreason_speed)
+    return fill_in_speed(new_distances, "Speed")
 
 
 def main():
     with INFILE.open("r") as f:
         points = list(DictReader(f))
-    points = fill_in_speed(fill_in_distance(points))
+    points = fill_in_points(points)
     assert all(points[0].keys() == point.keys() for point in points)
     with OUTFILE.open("w") as f:
         writer = DictWriter(f, fieldnames=points[0].keys())
