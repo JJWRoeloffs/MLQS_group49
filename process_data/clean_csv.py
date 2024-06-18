@@ -2,14 +2,15 @@
 """
 Cleans the data as it comes out raw from the csv.
 
+Removes unreasonable values:
+    Distance over 50km (Might be reasonable for others, but we know the subject.)
+    Heart Rate over 220
+    Heart Rate under 20
+    Speed over 30km/h (8 m/s)
 Removes runs that are incomplete:
     Less than 500m
     Less than 5min
     Less than 300 data points (which is 5min if it is all complete).
-Removes unreasonable values:
-    Distance over 50km (Might be reasonable for others, but we know the subject.)
-    Heart Rate over 200
-    Speed over 30km/h (8 m/s)
 Removes first and last 10 vals of each run:
     This is reasonable, as they are usually starting/stopping strava and all that.
 """
@@ -17,6 +18,8 @@ from pathlib import Path
 from datetime import datetime
 from itertools import groupby
 from csv import DictReader, DictWriter
+
+from sklearn.neighbors import LocalOutlierFactor
 
 from typing import Any, Dict, Iterable, List
 
@@ -64,19 +67,47 @@ def remove_unreasonable_values(data: List[Dict[str, Any]]) -> List[Dict[str, Any
     ret = [
         point
         for point in data
-        if float(point["HeartRate"]) < 200
+        if float(point["HeartRate"]) < 220
+        if float(point["HeartRate"]) > 20
         if float(point["Distance"]) < 50_000
         if float(point["Speed"]) < 8
+        if float(point["Speed"]) >= 0
     ]
     print(f"Removed {len(data) - len(ret)} out of {len(data)} points")
     print(f"{((len(data) - len(ret))/len(data))*100}%, because they are unreasonable")
     return ret
 
 
+def smoothen_speed(data: List[Dict[str, Any]], alpha: float) -> List[Dict[str, Any]]:
+    """Performs exponential smoothening on the speed variable"""
+    smoothened_speed = []
+    for _, group in groupby(data, lambda x: x["RunID"]):
+        group = sorted(group, key=get_time)
+        prev = float(group[0]["Speed"])
+        for point in group:
+            newval = (alpha * prev) + (1 - alpha) * float(point["Speed"])
+            smoothened_speed.append(point | {"Speed": newval})
+            prev = newval
+    return smoothened_speed
+
+
+def local_outlier_removal(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    clf = LocalOutlierFactor()
+    indata = [
+        [float(point["HeartRate"]), float(point["Speed"]), float(point["Distance"])]
+        for point in data
+    ]
+    labels = clf.fit_predict(indata)
+    print(f"Removed {sum(1 for label in labels if label == -1)} points with LOF")
+    return [point for label, point in zip(labels, data) if label != -1]
+
+
 def main():
     with INFILE.open("r") as f:
         points = list(DictReader(f))
-    points = remove_trailing(remove_unclean_runs(remove_unreasonable_values(points)))
+    cleaned = remove_trailing(remove_unclean_runs(remove_unreasonable_values(points)))
+    points = smoothen_speed(cleaned, 0.5)
+    points = local_outlier_removal(points)
     assert all(points[0].keys() == point.keys() for point in points)
     with OUTFILE.open("w") as f:
         writer = DictWriter(f, fieldnames=points[0].keys())
