@@ -123,13 +123,12 @@ def points_from_tcx(file: Path) -> List[Dict[str, Any]]:
 
 
 def points_from_file(file: Path) -> List[Dict[str, Any]]:
-    match file.suffix:
-        case ".tcx":
-            points = points_from_tcx(file)
-        case ".fit":
-            points = points_from_fit(file)
-        case _:
-            points = []
+    if file.suffix == ".tcx":
+        points = points_from_tcx(file)
+    elif file.suffix == ".fit":
+        points = points_from_fit(file)
+    else:
+        points = []
 
     return remove_useless(merge_data(points))
 
